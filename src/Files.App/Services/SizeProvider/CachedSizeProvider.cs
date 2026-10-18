@@ -51,8 +51,7 @@ namespace Files.App.Services.SizeProvider
 				using FindCloseSafeHandle findHandleScope = hFile;
 
 				ulong size = 0;
-				ulong localSize = 0;
-				string localPath = string.Empty;
+				int processedEntries = 0;
 
 				if (!hFile.IsInvalid)
 				{
@@ -72,17 +71,16 @@ namespace Files.App.Services.SizeProvider
 							string fileName = findData.cFileName.ToString();
 							if (fileName is not "." and not "..")
 							{
-								localPath = Path.Combine(path, fileName);
-								localSize = await Calculate(localPath, level + 1);
-								size += localSize;
+								var childPath = Path.Combine(path, fileName);
+								var childSize = await Calculate(childPath, level + 1);
+								size += childSize;
+								if (level <= 3)
+									sizes[childPath] = childSize;
 							}
 						}
 
-						if (level <= 3)
-						{
+						if (level <= 3 && ++processedEntries % 64 == 0)
 							await Task.Yield();
-							sizes[localPath] = localSize;
-						}
 						if (level is 0 && stopwatch.ElapsedMilliseconds > 500)
 						{
 							// Limit updates to every 0.5 seconds to prevent crashes due to frequent updates

@@ -15,6 +15,9 @@ namespace Files.App.Services
 
 		private readonly ConcurrentDictionary<string, byte[]?> _cache = new();
 		private readonly ConcurrentDictionary<string, BitmapImage> _imageCache = new();
+		private readonly ConcurrentDictionary<string, Lazy<Task<byte[]?>>> _pendingIcons = new();
+		private readonly object _cacheSync = new();
+		private int _cacheGeneration;
 
 		public async Task<byte[]?> GetIconAsync(string? itemPath, string? extension, bool isFolder, uint size)
 		{
@@ -23,20 +26,31 @@ namespace Files.App.Services
 			if (_cache.TryGetValue(key, out var cached))
 				return cached;
 
-			// Always use the dummy path so the shell resolves the generic type icon from the
-			// extension alone. This works correctly for all path types (local, MTP, FTP, network,
-			// cloud, etc.) because the cache is keyed by extension anyway, not by item identity.
-			// Folders use a real path so the exact-size extraction succeeds and matches per-item icons.
+			// Only the first request for each icon performs shell extraction.
+			var generation = Volatile.Read(ref _cacheGeneration);
+			var pendingKey = $"{generation}:{key}";
 			var iconPath = isFolder ? Environment.SystemDirectory : (string.IsNullOrEmpty(extension) ? _dummyPath : _dummyPath + extension);
+			var pending = _pendingIcons.GetOrAdd(pendingKey, _ => new Lazy<Task<byte[]?>>(
+				() => FileThumbnailHelper.GetIconAsync(iconPath, size, isFolder, IconOptions.ReturnIconOnly)));
 
-			var icon = await FileThumbnailHelper.GetIconAsync(
-				iconPath,
-				size,
-				isFolder,
-				IconOptions.ReturnIconOnly);
+			try
+			{
+				var icon = await pending.Value;
+				if (icon is not null)
+				{
+					lock (_cacheSync)
+					{
+						if (_cacheGeneration == generation)
+							_cache.TryAdd(key, icon);
+					}
+				}
 
-			_cache.TryAdd(key, icon);
-			return icon;
+				return icon;
+			}
+			finally
+			{
+				_pendingIcons.TryRemove(new KeyValuePair<string, Lazy<Task<byte[]?>>>(pendingKey, pending));
+			}
 		}
 
 		public async Task<BitmapImage?> GetIconImageAsync(string? itemPath, string? extension, bool isFolder, uint size)
@@ -62,8 +76,13 @@ namespace Files.App.Services
 
 		public void Clear()
 		{
-			_cache.Clear();
-			_imageCache.Clear();
+			lock (_cacheSync)
+			{
+				Interlocked.Increment(ref _cacheGeneration);
+				_cache.Clear();
+				_imageCache.Clear();
+				_pendingIcons.Clear();
+			}
 		}
 	}
 }
