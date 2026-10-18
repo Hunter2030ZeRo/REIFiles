@@ -202,15 +202,15 @@ namespace Files.App.Helpers
 
 		public void ReplaceRange(int index, IEnumerable<T> items)
 		{
-			var count = items.Count();
+			var replacements = items.ToList();
 
-			if (count == 0)
+			if (replacements.Count == 0)
 				return;
 
 			lock (syncRoot)
 			{
-				collection.RemoveRange(index, count);
-				collection.InsertRange(index, items.ToList());
+				collection.RemoveRange(index, replacements.Count);
+				collection.InsertRange(index, replacements);
 			}
 		}
 
@@ -232,14 +232,12 @@ namespace Files.App.Helpers
 
 		public void Order(Func<List<T>, IEnumerable<T>> func)
 		{
-			IEnumerable<T> result;
-
 			lock (syncRoot)
 			{
-				result = func.Invoke(collection);
+				var ordered = func(collection).ToList();
+				collection.Clear();
+				collection.AddRange(ordered);
 			}
-
-			ReplaceRange(0, result);
 		}
 
 		public void OrderOne(Func<List<T>, IEnumerable<T>> func, T item)
@@ -262,7 +260,7 @@ namespace Files.App.Helpers
 		{
 			lock (syncRoot)
 			{
-				return Enumerable.ToList(this);
+				return new List<T>(collection);
 			}
 		}
 

@@ -194,26 +194,14 @@ namespace Files.App.Utils
 		public BitmapImage? IconOverlay
 		{
 			get => iconOverlay;
-			set
-			{
-				if (value is not null)
-				{
-					SetProperty(ref iconOverlay, value);
-				}
-			}
+			set => SetProperty(ref iconOverlay, value);
 		}
 
 		private BitmapImage? shieldIcon;
 		public BitmapImage? ShieldIcon
 		{
 			get => shieldIcon;
-			set
-			{
-				if (value is not null)
-				{
-					SetProperty(ref shieldIcon, value);
-				}
-			}
+			set => SetProperty(ref shieldIcon, value);
 		}
 
 		private string? itemPath;

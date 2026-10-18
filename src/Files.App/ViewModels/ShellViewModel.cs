@@ -3294,9 +3294,10 @@ namespace Files.App.ViewModels
 
 		private async Task UpdateFilesOrFoldersAsync(IEnumerable<string> paths, bool hasSyncStatus)
 		{
+			var currentItems = filesAndFolders.ToList();
 			foreach (var path in paths)
 			{
-				var item = filesAndFolders.ToList().FirstOrDefault(x => x.GetRequiredPath().Equals(path, StringComparison.OrdinalIgnoreCase));
+				var item = currentItems.FirstOrDefault(x => x.GetRequiredPath().Equals(path, StringComparison.OrdinalIgnoreCase));
 				if (item is not null && item.NeedsDelayedThumbnailLoad)
 				{
 					App.Logger.LogInformation("FILE_ACTION_MODIFIED thumbnail retry triggered [{Id}] '{Extension}'.", path.GetHashCode(), Path.GetExtension(path));
@@ -3339,7 +3340,8 @@ namespace Files.App.ViewModels
 
 			try
 			{
-				var matchingItems = filesAndFolders.ToList().Where(x => paths.Any(p => p.Equals(x.ItemPath, StringComparison.OrdinalIgnoreCase)));
+				var changedPaths = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+				var matchingItems = filesAndFolders.ToList().Where(x => x.ItemPath is not null && changedPaths.Contains(x.ItemPath));
 				var results = await Task.WhenAll(matchingItems.Select(x => GetFileOrFolderUpdateInfoAsync(x, hasSyncStatus)));
 
 				await dispatcherQueue.EnqueueOrInvokeAsync(() =>
