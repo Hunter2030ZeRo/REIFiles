@@ -410,7 +410,8 @@ namespace Files.App.Utils.Storage
 
 		public void AddRange(IEnumerable<T> items)
 		{
-			if (!items.Any())
+			var itemsToAdd = items.ToList();
+			if (itemsToAdd.Count == 0)
 				return;
 
 			int count;
@@ -419,9 +420,9 @@ namespace Files.App.Utils.Storage
 			lock (syncRoot)
 			{
 				count = collection.Count;
-				collection.AddRange(items);
+				collection.AddRange(itemsToAdd);
 
-				e = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList(), count);
+				e = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, itemsToAdd, count);
 				OnCollectionChanged(e);
 			}
 
@@ -430,16 +431,17 @@ namespace Files.App.Utils.Storage
 
 		public void InsertRange(int index, IEnumerable<T> items)
 		{
-			if (!items.Any())
+			var itemsToInsert = items.ToList();
+			if (itemsToInsert.Count == 0)
 				return;
 
 			NotifyCollectionChangedEventArgs e;
 
 			lock (syncRoot)
 			{
-				collection.InsertRange(index, items);
+				collection.InsertRange(index, itemsToInsert);
 
-				e = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToList(), index);
+				e = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, itemsToInsert, index);
 				OnCollectionChanged(e);
 			}
 
@@ -456,7 +458,7 @@ namespace Files.App.Utils.Storage
 
 			lock (syncRoot)
 			{
-				items = collection.Skip(index).Take(count).ToList();
+				items = collection.GetRange(index, count);
 				collection.RemoveRange(index, count);
 
 				e = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, items, index);
@@ -468,19 +470,18 @@ namespace Files.App.Utils.Storage
 
 		public void ReplaceRange(int index, IEnumerable<T> items)
 		{
-			var count = items.Count();
+			var newItems = items.ToList();
+			var count = newItems.Count;
 
 			if (count == 0)
 				return;
 
 			List<T> oldItems;
-			List<T> newItems;
 			NotifyCollectionChangedEventArgs e;
 
 			lock (syncRoot)
 			{
-				oldItems = collection.Skip(index).Take(count).ToList();
-				newItems = items.ToList();
+				oldItems = collection.GetRange(index, count);
 				collection.RemoveRange(index, count);
 				collection.InsertRange(index, newItems);
 
